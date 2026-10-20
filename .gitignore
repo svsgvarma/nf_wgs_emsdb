@@ -1,0 +1,15 @@
+.nextflow/
+.nextflow.log*
+work/
+results/
+input/
+.singularity/
+.apptainer/
+timeline.html*
+report.html*
+trace.txt*
+dag.png
+*.bam
+*.bai
+*.vcf.gz
+*.fastq.gz
