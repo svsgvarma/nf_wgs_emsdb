@@ -9,7 +9,7 @@ The code is portable to any HPC (Slurm, PBS, SGE, LSF) or a local machine; no cl
 ## Repository layout
 
 ```
-rapeseed_wgs/
+nf_wgs_emsdb/
 ├── README.md                 # this file
 └── snp-calling/              # SNP/variant-calling pipeline (Nextflow DSL2)
     ├── genomics_snp-calling.nf
@@ -53,7 +53,7 @@ head job needs to be submitted (or run in `tmux`/`screen` on a login node for sh
 
 1. **Get the code and Nextflow** on the cluster:
    ```bash
-   git clone <repo-url> rapeseed_wgs && cd rapeseed_wgs/snp-calling
+   git clone <repo-url> nf_wgs_emsdb && cd nf_wgs_emsdb/snp-calling
    module avail nextflow            # module names/versions differ per site
    module load nextflow java        # Nextflow needs Java 11+ (17 recommended)
    ```
@@ -83,9 +83,9 @@ head job needs to be submitted (or run in `tmux`/`screen` on a login node for sh
 
    nextflow run genomics_snp-calling.nf \
        -profile slurm,singularity \
-       --input_dir /scratch/$USER/rapeseed_wgs \
-       --outdir    /scratch/$USER/rapeseed_wgs/results \
-       -w          /scratch/$USER/rapeseed_wgs/work \
+       --input_dir /scratch/$USER/nf_wgs_emsdb \
+       --outdir    /scratch/$USER/nf_wgs_emsdb/results \
+       -w          /scratch/$USER/nf_wgs_emsdb/work \
        -resume
    ```
    ```bash
