@@ -27,6 +27,26 @@ nf_wgs_emsdb/
 | [genomics_snp-calling.nf](snp-calling/genomics_snp-calling.nf) | Aligned BAMs (list in `sample_bams.txt`) | Index BAMs (samtools) → per-sample GVCF (GATK HaplotypeCaller) → joint genotyping across all samples (GATK GenomicsDBImport + GenotypeGVCFs) → cohort VCF. Main workflow for already-aligned rapeseed lines. |
 | [genomics_snp-calling_hgtest.nf](snp-calling/genomics_snp-calling_hgtest.nf) | Paired-end FASTQ | Full workflow: BWA-MEM alignment → samtools sort → index → HaplotypeCaller → joint genotyping. Currently configured with a human GRCh38 / NIST GIAB test dataset to validate the pipeline; point the reference and read paths to the *B. napus* genome and EMS-line FASTQs for real analysis. |
 
+### Workflow
+
+```mermaid
+flowchart TD
+    subgraph FQ["genomics_snp-calling_hgtest.nf (from FASTQ)"]
+        A[Paired-end FASTQ] --> B[BWA index reference]
+        B --> C[BWA-MEM alignment]
+        C --> D[samtools sort]
+    end
+    D --> E
+    subgraph BAM["genomics_snp-calling.nf (from BAM)"]
+        F[sample_bams.txt] --> E[samtools index BAM]
+        E --> G[GATK HaplotypeCaller<br/>per-sample GVCF]
+        G --> H[GATK GenomicsDBImport]
+        H --> I[GATK GenotypeGVCFs]
+    end
+    I --> J[(Cohort VCF)]
+    J -.-> K[Downstream EMS filtering<br/>G/C to A/T, depth, AF]
+```
+
 ### Modules ([snp-calling/modules](snp-calling/modules))
 
 - `bwa/` – reference indexing and BWA-MEM alignment (streams directly to BAM).
