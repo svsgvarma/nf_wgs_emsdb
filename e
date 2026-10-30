@@ -1,84 +1,0 @@
-Dockerfile:18: trailing whitespace.
-[32m+[m[32m      bcftools \[m[41m[m
-Dockerfile:19: trailing whitespace.
-[32m+[m[32m      htslib \[m[41m[m
-Dockerfile:20: trailing whitespace.
-[32m+[m[32m      snpeff=5.2 \[m[41m[m
-Dockerfile:25: trailing whitespace.
-[32m+[m[32mRUN SNPEFF_DIR="$(find /opt/conda/share -maxdepth 1 -type d -name 'snpeff-*' | head -n 1)" \[m[41m[m
-Dockerfile:26: trailing whitespace.
-[32m+[m[32m && test -n "$SNPEFF_DIR" \[m[41m[m
-Dockerfile:27: trailing whitespace.
-[32m+[m[32m && ln -s "$SNPEFF_DIR" /opt/conda/share/snpeff[m[41m[m
-Dockerfile:28: trailing whitespace.
-[32m+[m[41m[m
-Dockerfile:31: trailing whitespace.
-[32m+[m[32mENV SNPEFF_HOME=/opt/conda/share/snpeff[m[41m[m
-Dockerfile:32: trailing whitespace.
-[32m+[m[32mENV SNPEFF_JAR=/opt/conda/share/snpeff/snpEff.jar[m[41m[m
-Dockerfile:33: trailing whitespace.
-[32m+[m[32mENV SNPSIFT_JAR=/opt/conda/share/snpeff/SnpSift.jar[m[41m[m
-Dockerfile:37: trailing whitespace.
-[32m+[m[32mWORKDIR /pipeline/snp-calling[m[41m[m
-Dockerfile:41: trailing whitespace.
-[32m+[m[32m#     nf-wgs-emsdb genomics_snp-calling.nf --input_dir /pipeline/input[m[41m[m
-README.md:14: trailing whitespace.
-[32m+[m[32m├── Dockerfile                # shared local-test image for all pipelines[m[41m[m
-README.md:16: trailing whitespace.
-[32m+[m[32m   ├── main.nf               # modern FASTQ caller with scatter/gather and QC[m[41m[m
-README.md:22: trailing whitespace.
-[32m+[m[32m└── snp-anno/                 # portable SnpEff annotation and EMS reporting[m[41m[m
-README.md:23: trailing whitespace.
-[32m+[m[32m   ├── main.nf[m[41m[m
-README.md:24: trailing whitespace.
-[32m+[m[32m   ├── nextflow.config[m[41m[m
-README.md:25: trailing whitespace.
-[32m+[m[32m   └── README.md[m[41m[m
-README.md:32: trailing whitespace.
-[32m+[m[32m| [snp-calling/main.nf](snp-calling/main.nf) | Paired-end FASTQ | BWA-MEM, duplicate marking, alignment QC, scattered GATK calling/joint genotyping, gather and cohort QC. |[m[41m[m
-README.md:35: trailing whitespace.
-[32m+[m[32m| [snp-anno/main.nf](snp-anno/main.nf) | Joint VCF, reference FASTA and GFF/GTF | Normalise/filter, build a reusable SnpEff database, annotate/extract effects, write QC and optional EMS reports. |[m[41m[m
-README.md:54: trailing whitespace.
-[32m+[m[32m   J --> K[snp-anno: normalise and annotate][m[41m[m
-README.md:55: trailing whitespace.
-[32m+[m[32m   K --> L[SnpEff and annotation QC][m[41m[m
-README.md:56: trailing whitespace.
-[32m+[m[32m   K -. --ems true .-> M[EMS mutation report][m[41m[m
-README.md:72: trailing whitespace.
-[32m+[m[32mnextflow run main.nf -profile slurm,singularity --input_dir /path/to/project[m[41m[m
-README.md:73: trailing whitespace.
-[32m+[m[41m[m
-README.md:74: trailing whitespace.
-[32m+[m[32mcd ../snp-anno[m[41m[m
-README.md:75: trailing whitespace.
-[32m+[m[32mnextflow run main.nf -profile slurm,singularity \[m[41m[m
-README.md:76: trailing whitespace.
-[32m+[m[32m   --genome_fasta /path/to/reference.fa --genome_gff /path/to/genes.gff3 \[m[41m[m
-README.md:77: trailing whitespace.
-[32m+[m[32m   --cohort_name family_trio[m[41m[m
-snp-calling/README.md:7: trailing whitespace.
-[32m+[m[32mUse `main.nf` for the modern FASTQ workflow with duplicate marking, scatter/gather calling and cohort QC.[m[41m[m
-snp-calling/README.md:8: trailing whitespace.
-[32m+[m[32mThe two `genomics_snp-calling*.nf` workflows remain available for legacy BAM and GIAB test runs.[m[41m[m
-snp-calling/README.md:9: trailing whitespace.
-[32m+[m[41m[m
-snp-calling/README.md:14: trailing whitespace.
-[32m+[m[32m├── main.nf                          # modern FASTQ workflow[m[41m[m
-snp-calling/README.md:48: trailing whitespace.
-[32m+[m[32mnextflow run main.nf -profile slurm,singularity --input_dir /scratch/me/project[m[41m[m
-snp-calling/README.md:52: trailing whitespace.
-[32m+[m[32mnextflow run main.nf -profile slurm,nocontainer --input_dir /scratch/me/project[m[41m[m
-snp-calling/README.md:71: trailing whitespace.
-[32m+[m[32mThe [Dockerfile](../Dockerfile) in the repo root bundles Nextflow, Java 17, bwa, bowtie2, samtools, GATK 4.5.0.0 and MultiQC so[m[41m[m
-snp-calling/README.md:75: trailing whitespace.
-[32m+[m[32m# run from the repo root[m[41m[m
-snp-calling/README.md:76: trailing whitespace.
-[32m+[m[32mdocker build -t nf-wgs-emsdb .[m[41m[m
-snp-calling/README.md:82: trailing whitespace.
-[32m+[m[32m  nf-wgs-emsdb genomics_snp-calling.nf --input_dir /pipeline/input[m[41m[m
-snp-calling/nextflow.config:7: trailing whitespace.
-[32m+[m[32m  index_store = "${launchDir}/results/reference_index"[m[41m[m
-snp-calling/nextflow.config:8: trailing whitespace.
-[32m+[m[32m  publish_bams = false[m[41m[m
-snp-calling/nextflow.config:9: trailing whitespace.
-[32m+[m[32m  bwa_threads = 16[m[41m[m
