@@ -24,17 +24,16 @@ process BWA_INDEX {
  * Align paired-end reads using BWA MEM with read group and threads
  */
 
-params.bwa_threads = 8
-
 process BWA_ALIGN {
+    tag "${sample_id}"
     // SAM is never written to disk — BWA output is piped directly into samtools view to produce BAM.
     // This avoids staging a 100-200 GB SAM file from S3 in a downstream SAMTOOLS_CONVERT step,
     // which previously caused [Errno 12] Cannot allocate memory on the Batch instance.
     // SAMTOOLS_CONVERT is therefore no longer needed and has been removed from the workflow.
     // No need to publish to S3; disabling publishDir saves storage and upload cost.
     // publishDir params.outdir, mode: 'copy'
-    cpus params.bwa_threads ?: 8
-    memory '16 GB'
+    cpus params.bwa_threads ?: 16
+    memory { 20.GB * task.attempt }
 
     input:
         tuple val(sample_id), path(reads1), path(reads2)
@@ -47,8 +46,10 @@ process BWA_ALIGN {
 
     script:
     """
+    set -o pipefail
     index_prefix=\$(ls *.amb | sed 's/\\.amb//')
-    bwa mem -t ${task.cpus} -R "@RG\\tID:${sample_id}\\tSM:${sample_id}" \$index_prefix $reads1 $reads2 | samtools view -bS - > ${sample_id}.bam
+    bwa mem -t ${task.cpus} -R "@RG\\tID:${sample_id}\\tSM:${sample_id}" \$index_prefix $reads1 $reads2 \\
+        | samtools view -@ 4 -1 -b -o ${sample_id}.bam -
     """
 }
 

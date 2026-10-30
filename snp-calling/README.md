@@ -4,10 +4,14 @@ Short-read WGS SNP calling: alignment (BWA / Bowtie2) → samtools sort / add re
 GATK HaplotypeCaller (GVCF) → GATK joint genotyping → MultiQC.
 Cloud/infra code (AWS Batch, S3, Terraform) has been removed; the pipeline runs on any filesystem.
 
+Use `main.nf` for the modern FASTQ workflow with duplicate marking, scatter/gather calling and cohort QC.
+The two `genomics_snp-calling*.nf` workflows remain available for legacy BAM and GIAB test runs.
+
 ## Layout
 
 ```
 snp-calling/
+├── main.nf                          # modern FASTQ workflow
 ├── genomics_snp-calling.nf          # main workflow (BAM list input)
 ├── genomics_snp-calling_hgtest.nf   # test workflow (FASTQ pairs, GRCh38 GIAB reference)
 ├── nextflow.config                  # params + executor/container profiles
@@ -16,7 +20,6 @@ snp-calling/
 │   ├── samtools/index/             # convert, sort, add read groups, index
 │   ├── gatk/haplotypecaller/  gatk/jointgenotyping/
 │   └── multiqc/
-├── Dockerfile                       # local testing only
 └── README.md
 ```
 
@@ -42,11 +45,11 @@ Use the scheduler profile that matches your site, combined with either container
 
 ```bash
 # Slurm + Singularity/Apptainer
-nextflow run genomics_snp-calling.nf -profile slurm,singularity --input_dir /scratch/me/project
+nextflow run main.nf -profile slurm,singularity --input_dir /scratch/me/project
 
 # Slurm + tools from environment modules (no containers)
 module load nextflow bwa samtools gatk multiqc   # names/versions vary per site
-nextflow run genomics_snp-calling.nf -profile slurm,nocontainer --input_dir /scratch/me/project
+nextflow run main.nf -profile slurm,nocontainer --input_dir /scratch/me/project
 ```
 
 Profiles in [nextflow.config](nextflow.config):
@@ -65,17 +68,18 @@ If a module's `publishDir`/work paths should live on scratch, pass `-w /scratch/
 
 ## Local test with Docker
 
-The [Dockerfile](Dockerfile) bundles Nextflow, Java 17, bwa, bowtie2, samtools, GATK 4.5.0.0 and MultiQC so
+The [Dockerfile](../Dockerfile) in the repo root bundles Nextflow, Java 17, bwa, bowtie2, samtools, GATK 4.5.0.0 and MultiQC so
 the pipeline can be smoke-tested on a workstation. It is not meant for HPC deployment.
 
 ```bash
-docker build -t rapeseed-snp-calling .
+# run from the repo root
+docker build -t nf-wgs-emsdb .
 
 docker run --rm \
   -v "$PWD/input:/pipeline/input" \
   -v "$PWD/results:/pipeline/results" \
   -v "$PWD/work:/pipeline/work" \
-  rapeseed-snp-calling genomics_snp-calling.nf --input_dir /pipeline/input
+  nf-wgs-emsdb genomics_snp-calling.nf --input_dir /pipeline/input
 ```
 
 PowerShell: replace `$PWD` with `${PWD}`. The container runs with `-profile local,nocontainer`

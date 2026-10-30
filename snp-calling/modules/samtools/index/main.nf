@@ -32,7 +32,7 @@
 process SAMTOOLS_SORT {
     // mode: 'symlink' does not work with S3 — symlinks are local filesystem constructs and cannot be created in S3. Using copy instead
     // publishDir params.outdir, mode: 'symlink'
-    publishDir params.outdir, mode: 'copy'
+    publishDir params.outdir, mode: 'copy', enabled: params.publish_bams == true
 
     memory '16 GB'
 
@@ -51,7 +51,7 @@ process SAMTOOLS_SORT {
 process SAMTOOLS_ADDRG {
     // mode: 'symlink' does not work with S3 — symlinks are local filesystem constructs and cannot be created in S3. Using copy instead
     // publishDir params.outdir, mode: 'symlink'
-    publishDir params.outdir, mode: 'copy'
+    publishDir params.outdir, mode: 'copy', enabled: params.publish_bams == true
 
     memory '16 GB'
 
@@ -73,9 +73,11 @@ process SAMTOOLS_ADDRG {
 process SAMTOOLS_INDEX {
     // mode: 'symlink' does not work with S3 — symlinks are local filesystem constructs and cannot be created in S3. Using copy instead
     // publishDir params.outdir, mode: 'symlink'
-    publishDir params.outdir, mode: 'copy'
+    publishDir params.outdir, mode: 'copy', enabled: params.publish_bams == true
+    tag "${sample_id}"
 
-    memory '16 GB'
+    cpus 2
+    memory '2 GB'
 
     input:
         tuple val(sample_id), path(bam_file)
@@ -85,6 +87,6 @@ process SAMTOOLS_INDEX {
 
     script:
     """
-    samtools index $bam_file
+    samtools index -@ ${task.cpus} $bam_file
     """
 }

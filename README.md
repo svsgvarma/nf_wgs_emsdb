@@ -11,21 +11,28 @@ The code is portable to any HPC (Slurm, PBS, SGE, LSF) or a local machine; no cl
 ```
 nf_wgs_emsdb/
 ├── README.md                 # this file
+├── Dockerfile                # shared local-test image for all pipelines
 └── snp-calling/              # SNP/variant-calling pipeline (Nextflow DSL2)
+   ├── main.nf               # modern FASTQ caller with scatter/gather and QC
     ├── genomics_snp-calling.nf
     ├── genomics_snp-calling_hgtest.nf
     ├── nextflow.config
     ├── modules/
-    ├── Dockerfile
     └── README.md             # detailed usage, profiles, input layout
+└── snp-anno/                 # portable SnpEff annotation and EMS reporting
+   ├── main.nf
+   ├── nextflow.config
+   └── README.md
 ```
 
 ## Pipelines
 
 | Script | Starts from | What it does |
 |--------|-------------|--------------|
+| [snp-calling/main.nf](snp-calling/main.nf) | Paired-end FASTQ | BWA-MEM, duplicate marking, alignment QC, scattered GATK calling/joint genotyping, gather and cohort QC. |
 | [genomics_snp-calling.nf](snp-calling/genomics_snp-calling.nf) | Aligned BAMs (list in `sample_bams.txt`) | Index BAMs (samtools) → per-sample GVCF (GATK HaplotypeCaller) → joint genotyping across all samples (GATK GenomicsDBImport + GenotypeGVCFs) → cohort VCF. Main workflow for already-aligned rapeseed lines. |
 | [genomics_snp-calling_hgtest.nf](snp-calling/genomics_snp-calling_hgtest.nf) | Paired-end FASTQ | Full workflow: BWA-MEM alignment → samtools sort → index → HaplotypeCaller → joint genotyping. Currently configured with a human GRCh38 / NIST GIAB test dataset to validate the pipeline; point the reference and read paths to the *B. napus* genome and EMS-line FASTQs for real analysis. |
+| [snp-anno/main.nf](snp-anno/main.nf) | Joint VCF, reference FASTA and GFF/GTF | Normalise/filter, build a reusable SnpEff database, annotate/extract effects, write QC and optional EMS reports. |
 
 ### Workflow
 
@@ -44,7 +51,9 @@ flowchart TD
         H --> I[GATK GenotypeGVCFs]
     end
     I --> J[(Cohort VCF)]
-    J -.-> K[Downstream EMS filtering<br/>G/C to A/T, depth, AF]
+   J --> K[snp-anno: normalise and annotate]
+   K --> L[SnpEff and annotation QC]
+   K -. --ems true .-> M[EMS mutation report]
 ```
 
 ### Modules ([snp-calling/modules](snp-calling/modules))
@@ -60,7 +69,12 @@ flowchart TD
 
 ```bash
 cd snp-calling
-nextflow run genomics_snp-calling.nf -profile slurm,singularity --input_dir /path/to/project
+nextflow run main.nf -profile slurm,singularity --input_dir /path/to/project
+
+cd ../snp-anno
+nextflow run main.nf -profile slurm,singularity \
+   --genome_fasta /path/to/reference.fa --genome_gff /path/to/genes.gff3 \
+   --cohort_name family_trio
 ```
 
 See [snp-calling/README.md](snp-calling/README.md) for the input layout, executor/container profiles, HPC module
