@@ -15,18 +15,29 @@ RUN micromamba install -y -n base -c conda-forge -c bioconda \
       bwa \
       bowtie2 \
       samtools \
+      bcftools \
+      htslib \
+      snpeff=5.2 \
       gatk4=4.5.0.0 \
       multiqc \
  && micromamba clean -a -y
 
+RUN SNPEFF_DIR="$(find /opt/conda/share -maxdepth 1 -type d -name 'snpeff-*' | head -n 1)" \
+ && test -n "$SNPEFF_DIR" \
+ && ln -s "$SNPEFF_DIR" /opt/conda/share/snpeff
+
 ENV PATH="/opt/conda/bin:${PATH}"
 ENV NXF_HOME=/tmp/.nextflow
+ENV SNPEFF_HOME=/opt/conda/share/snpeff
+ENV SNPEFF_JAR=/opt/conda/share/snpeff/snpEff.jar
+ENV SNPSIFT_JAR=/opt/conda/share/snpeff/SnpSift.jar
 
 WORKDIR /pipeline
 COPY --chown=$MAMBA_USER:$MAMBA_USER . /pipeline
+WORKDIR /pipeline/snp-calling
 
 # Pass pipeline script and params at run time, e.g.
 #   docker run --rm -v ${PWD}/input:/pipeline/input -v ${PWD}/results:/pipeline/results \
-#     rapeseed-snp-calling genomics_snp-calling.nf --input_dir /pipeline/input
+#     nf-wgs-emsdb genomics_snp-calling.nf --input_dir /pipeline/input
 ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "nextflow", "run", "-profile", "local,nocontainer"]
 CMD ["genomics_snp-calling.nf"]
