@@ -14,3 +14,5 @@ dag.png
 *.vcf.gz
 *.fastq.gz
 __pycache__/
+hpc/
+tests/
