@@ -13,3 +13,4 @@ dag.png
 *.bai
 *.vcf.gz
 *.fastq.gz
+__pycache__/

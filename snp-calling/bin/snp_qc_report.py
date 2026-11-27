@@ -18,7 +18,8 @@ def flagstat_metrics(path):
     with open(path, encoding='utf-8') as handle:
         for line in handle:
             columns = line.rstrip().split('\t')
-            if len(columns) >= 3:
+            # skip the percentage rows ("100.00%  N/A  mapped %")
+            if len(columns) >= 3 and columns[0].isdigit():
                 values[columns[2]] = int(columns[0])
     primary = values.get('primary', 0)
     mapped = values.get('primary mapped', 0)

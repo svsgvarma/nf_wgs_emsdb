@@ -13,12 +13,10 @@ nf_wgs_emsdb/
 ├── README.md                 # this file
 ├── Dockerfile                # shared local-test image for all pipelines
 └── snp-calling/              # SNP/variant-calling pipeline (Nextflow DSL2)
-   ├── main.nf               # modern FASTQ caller with scatter/gather and QC
-    ├── genomics_snp-calling.nf
-    ├── genomics_snp-calling_hgtest.nf
-    ├── nextflow.config
-    ├── modules/
-    └── README.md             # detailed usage, profiles, input layout
+   ├── main.nf               # FASTQ caller with scatter/gather and QC
+   ├── nextflow.config
+   ├── modules/
+   └── README.md             # detailed usage, profiles, input layout
 └── snp-anno/                 # portable SnpEff annotation and EMS reporting
    ├── main.nf
    ├── nextflow.config
@@ -30,27 +28,25 @@ nf_wgs_emsdb/
 | Script | Starts from | What it does |
 |--------|-------------|--------------|
 | [snp-calling/main.nf](snp-calling/main.nf) | Paired-end FASTQ | BWA-MEM, duplicate marking, alignment QC, scattered GATK calling/joint genotyping, gather and cohort QC. |
-| [genomics_snp-calling.nf](snp-calling/genomics_snp-calling.nf) | Aligned BAMs (list in `sample_bams.txt`) | Index BAMs (samtools) → per-sample GVCF (GATK HaplotypeCaller) → joint genotyping across all samples (GATK GenomicsDBImport + GenotypeGVCFs) → cohort VCF. Main workflow for already-aligned rapeseed lines. |
-| [genomics_snp-calling_hgtest.nf](snp-calling/genomics_snp-calling_hgtest.nf) | Paired-end FASTQ | Full workflow: BWA-MEM alignment → samtools sort → index → HaplotypeCaller → joint genotyping. Currently configured with a human GRCh38 / NIST GIAB test dataset to validate the pipeline; point the reference and read paths to the *B. napus* genome and EMS-line FASTQs for real analysis. |
 | [snp-anno/main.nf](snp-anno/main.nf) | Joint VCF, reference FASTA and GFF/GTF | Normalise/filter, build a reusable SnpEff database, annotate/extract effects, write QC and optional EMS reports. |
 
 ### Workflow
 
 ```mermaid
 flowchart TD
-    subgraph FQ["genomics_snp-calling_hgtest.nf (from FASTQ)"]
-        A[Paired-end FASTQ] --> B[BWA index reference]
-        B --> C[BWA-MEM alignment]
-        C --> D[samtools sort]
-    end
-    D --> E
-    subgraph BAM["genomics_snp-calling.nf (from BAM)"]
-        F[sample_bams.txt] --> E[samtools index BAM]
-        E --> G[GATK HaplotypeCaller<br/>per-sample GVCF]
-        G --> H[GATK GenomicsDBImport]
-        H --> I[GATK GenotypeGVCFs]
+    subgraph SC["snp-calling/main.nf (from FASTQ)"]
+        A[Paired-end FASTQ] --> C[BWA-MEM alignment]
+        B[Reference: faidx, dict, BWA index] --> C
+        C --> D[samtools fixmate, sort, markdup]
+        D --> E[samtools index + alignment QC]
+        B --> S[Split genome into interval shards]
+        E --> G[GATK HaplotypeCaller<br/>per sample x shard GVCF]
+        S --> G
+        G --> H[GenomicsDBImport + GenotypeGVCFs<br/>per shard]
+        H --> I[GatherVcfs]
     end
     I --> J[(Cohort VCF)]
+    J --> Q[SNP-calling QC report]
    J --> K[snp-anno: normalise and annotate]
    K --> L[SnpEff and annotation QC]
    K -. --ems true .-> M[EMS mutation report]
@@ -58,23 +54,27 @@ flowchart TD
 
 ### Modules ([snp-calling/modules](snp-calling/modules))
 
-- `bwa/` – reference indexing and BWA-MEM alignment (streams directly to BAM).
-- `bowtie/` – Bowtie2 indexing and alignment (alternative aligner, not wired into the workflows).
-- `samtools/index/` – SAM→BAM conversion, sorting, read-group addition, BAM indexing.
-- `gatk/haplotypecaller/` – per-sample variant calling in GVCF mode.
-- `gatk/jointgenotyping/` – combine GVCFs and jointly genotype the cohort.
-- `multiqc/` – QC report aggregation (currently commented out in the workflows).
+- `reference/` – faidx, sequence dictionary and BWA index (cached in `--index_store`); interval sharding.
+- `bwa/` – BWA-MEM alignment (streams directly to BAM).
+- `samtools/markdup/`, `samtools/index/`, `samtools/qc/` – duplicate marking, BAM indexing, alignment QC.
+- `gatk/scatter/` – per-shard HaplotypeCaller, per-shard joint genotyping, and VCF gathering.
+- `qc_report/` – cohort SNP-calling QC report.
+- Not wired into `main.nf`: `bowtie/` (alternative aligner), `multiqc/`, `gatk/haplotypecaller/`,
+  `gatk/jointgenotyping/` (unscattered versions).
 
 ## Quick start
 
 ```bash
 cd snp-calling
-nextflow run main.nf -profile slurm,singularity --input_dir /path/to/project
+nextflow run main.nf -profile slurm,singularity \
+   --reference /path/to/reference.fa --reads_fastq '/path/to/fastq/*_R{1,2}_*.fastq.gz' \
+   --cohort_name family_trio
 
 cd ../snp-anno
 nextflow run main.nf -profile slurm,singularity \
    --genome_fasta /path/to/reference.fa --genome_gff /path/to/genes.gff3 \
-   --cohort_name family_trio
+   --genome_name bnapus --cohort_name family_trio \
+   --snp_calling_results ../snp-calling/results
 ```
 
 See [snp-calling/README.md](snp-calling/README.md) for the input layout, executor/container profiles, HPC module
@@ -92,7 +92,7 @@ head job needs to be submitted (or run in `tmux`/`screen` on a login node for sh
    module load nextflow java        # Nextflow needs Java 11+ (17 recommended)
    ```
 2. **Put data on shared/scratch storage** using the layout in [snp-calling/README.md](snp-calling/README.md)
-   (`data/ref/...`, `data/sample_bams.txt` or `data/fastq/...`). Use absolute paths in `sample_bams.txt`.
+   (reference FASTA and paired FASTQs; pass them with `--reference` and `--reads_fastq`).
 3. **Set site options** in the profile you use in [snp-calling/nextflow.config](snp-calling/nextflow.config)
    (e.g. `process.queue`, `process.clusterOptions = '--account=<project>'`), or pass a site config with `-c site.config`.
 4. **Choose how tools are provided**: `-profile slurm,singularity` (containers) or `-profile slurm,nocontainer`
@@ -115,9 +115,10 @@ head job needs to be submitted (or run in `tmux`/`screen` on a login node for sh
    export NXF_OPTS='-Xms512m -Xmx4g'
    export NXF_SINGULARITY_CACHEDIR=/scratch/$USER/singularity_cache   # only for singularity
 
-   nextflow run genomics_snp-calling.nf \
+   nextflow run main.nf \
        -profile slurm,singularity \
-       --input_dir /scratch/$USER/nf_wgs_emsdb \
+       --reference /scratch/$USER/nf_wgs_emsdb/data/ref/ref.fasta \
+       --reads_fastq '/scratch/$USER/nf_wgs_emsdb/data/fastq/*_R{1,2}_*.fastq.gz' \
        --outdir    /scratch/$USER/nf_wgs_emsdb/results \
        -w          /scratch/$USER/nf_wgs_emsdb/work \
        -resume

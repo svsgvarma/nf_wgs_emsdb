@@ -39,10 +39,10 @@ params.ems_report_cpus = 8
 
 include { SNPEFF_BUILD } from './modules/snpeff/build/main.nf'
 include { PREPARE_VCF } from './modules/bcftools/prepare/main.nf'
-include { SNPEFF_ANNOTATE } from './modules/snpeff/annotate/main.nf'
+include { SNPEFF_ANNOTATE; BGZIP_INDEX_VCF } from './modules/snpeff/annotate/main.nf'
 include { SNPSIFT_EXTRACT } from './modules/snpsift/extract/main.nf'
 include { ANNOTATION_QC_REPORT } from './modules/qc_report/main.nf'
-include { EMS_REPORT } from './modules/ems_report/main.nf'
+include { EMS_EXTRACT_SITES; EMS_REPORT } from './modules/ems_report/main.nf'
 
 def optional_file(path) {
     return (path && file(path).exists()) ? file(path) : file("${projectDir}/assets/NO_FILE")
@@ -68,17 +68,19 @@ workflow {
     SNPEFF_BUILD(fasta, gff, params.genome_name)
     PREPARE_VCF(vcf, fasta, params.cohort_name, keep_filtered)
     SNPEFF_ANNOTATE(PREPARE_VCF.out.vcf, SNPEFF_BUILD.out.db, params.genome_name, params.cohort_name)
-    SNPSIFT_EXTRACT(SNPEFF_ANNOTATE.out.vcf, params.cohort_name)
+    annotated_vcf = BGZIP_INDEX_VCF(SNPEFF_ANNOTATE.out.vcf).vcf
+    SNPSIFT_EXTRACT(annotated_vcf, params.cohort_name)
     ANNOTATION_QC_REPORT(
-        SNPEFF_ANNOTATE.out.vcf,
+        annotated_vcf,
         PREPARE_VCF.out.stats,
         params.cohort_name,
         params.genome_name,
         vcf_path
     )
     if (params.ems) {
+        EMS_EXTRACT_SITES(annotated_vcf, params.cohort_name)
         EMS_REPORT(
-            SNPEFF_ANNOTATE.out.vcf,
+            EMS_EXTRACT_SITES.out.sites,
             optional_file(params.ems_alignment_qc),
             optional_file(params.ems_candidate_genes),
             optional_file(params.ems_homeolog_pairs),

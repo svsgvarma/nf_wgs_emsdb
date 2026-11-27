@@ -1,10 +1,32 @@
+// Split in two so each step runs in an image that has its tools: bcftools (no python) and python (no bcftools).
+process EMS_EXTRACT_SITES {
+    tag "${cohort}"
+    cpus 1
+    memory '4 GB'
+    input:
+        tuple path(vcf), path(vcf_index)
+        val cohort
+    output:
+        tuple path('header.txt'), path('samples.txt'), path('sites.tsv'), emit: sites
+    script:
+    """
+    set -o pipefail
+    bcftools view -h ${vcf} > header.txt
+    bcftools query -l ${vcf} > samples.txt
+    MQ_FIELD=\$(grep -q '^##INFO=<ID=MQ,' header.txt && echo '%INFO/MQ' || echo '.')
+    bcftools query -i 'TYPE="snp"' \\
+        -f "%CHROM\\t%POS\\t%REF\\t%ALT\\t%QUAL\\t\${MQ_FIELD}\\t%FILTER\\t%INFO/ANN[\\t%AD:%DP]\\n" \\
+        ${vcf} > sites.tsv
+    """
+}
+
 process EMS_REPORT {
     tag "${cohort}"
     publishDir "${params.outdir}/ems_report", mode: 'copy', overwrite: true
     cpus params.ems_report_cpus
     memory '16 GB'
     input:
-        tuple path(vcf), path(vcf_index)
+        tuple path(header), path(samples), path(sites)
         path alignment_qc, stageAs: 'opt_alignment_qc/*'
         path candidate_genes, stageAs: 'opt_candidate_genes/*'
         path homeolog_pairs, stageAs: 'opt_homeolog_pairs/*'
@@ -17,14 +39,7 @@ process EMS_REPORT {
     def candidate_genes_arg = candidate_genes.toString().endsWith('NO_FILE') ? "''" : "'${candidate_genes}'"
     def homeolog_pairs_arg = homeolog_pairs.toString().endsWith('NO_FILE') ? "''" : "'${homeolog_pairs}'"
     """
-    set -o pipefail
-    bcftools view -h ${vcf} > header.txt
-    bcftools query -l ${vcf} > samples.txt
-    MQ_FIELD=\$(grep -q '^##INFO=<ID=MQ,' header.txt && echo '%INFO/MQ' || echo '.')
-    bcftools query -i 'TYPE="snp"' \\
-        -f "%CHROM\\t%POS\\t%REF\\t%ALT\\t%QUAL\\t\${MQ_FIELD}\\t%FILTER\\t%INFO/ANN[\\t%AD:%DP]\\n" \\
-        ${vcf} > sites.tsv
-    ems_report.py --sites sites.tsv --samples samples.txt --header header.txt --cohort ${cohort} --outdir . \\
+    ems_report.py --sites ${sites} --samples ${samples} --header ${header} --cohort ${cohort} --outdir . \\
         --wt-samples '${params.ems_wt_samples}' --mutant-samples '${params.ems_mutant_samples}' \\
         --pool-sizes '${params.ems_pool_sizes}' --families '${params.ems_families}' \\
         --min-alt ${params.ems_min_alt} --min-dp ${params.ems_min_dp} --min-af ${params.ems_min_af} \\
@@ -35,6 +50,5 @@ process EMS_REPORT {
         --candidate-genes ${candidate_genes_arg} --homeolog-pairs ${homeolog_pairs_arg} \\
         --window ${(params.qc_window_mb * 1000000) as long} --max-contigs ${params.qc_max_contigs} \\
         --many-samples ${params.qc_many_samples} --top-genes ${params.qc_top_genes} --threads ${task.cpus}
-    rm -f sites.tsv
     """
 }

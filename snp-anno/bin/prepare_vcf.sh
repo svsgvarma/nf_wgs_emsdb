@@ -4,7 +4,7 @@ vcf="$1"; fasta="$2"; cohort="$3"; normalize="$4"; hard_filter="$5"; keep_filter
 bcftools stats --threads "$threads" "$vcf" > "${cohort}.prepare_1_input.stats.txt"
 if [[ "$normalize" == "true" ]]; then
     case "$fasta" in *.gz) zcat "$fasta" > ref.fa ;; *) ln -sf "$(readlink -f "$fasta")" ref.fa ;; esac
-    samtools faidx ref.fa
+    # bcftools norm builds ref.fa.fai itself; no samtools needed (not in the bcftools image)
     bcftools norm --threads "$threads" -m -any --check-ref w -f ref.fa -Oz -o norm.vcf.gz "$vcf"
 else
     bcftools view --threads "$threads" -Oz -o norm.vcf.gz "$vcf"

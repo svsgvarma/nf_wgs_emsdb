@@ -12,7 +12,7 @@ process PREPARE_REFERENCE {
     script:
     """
     samtools faidx ${fasta}
-    gatk CreateSequenceDictionary -R ${fasta} -O ${fasta.baseName}.dict
+    samtools dict -o ${fasta.baseName}.dict ${fasta}
     bwa index -a bwtsw ${fasta}
     """
 }

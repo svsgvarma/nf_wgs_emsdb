@@ -1,41 +1,38 @@
 # SNP-calling Nextflow pipeline (HPC-portable)
 
-Short-read WGS SNP calling: alignment (BWA / Bowtie2) → samtools sort / add read groups / index →
-GATK HaplotypeCaller (GVCF) → GATK joint genotyping → MultiQC.
-Cloud/infra code (AWS Batch, S3, Terraform) has been removed; the pipeline runs on any filesystem.
-
-Use `main.nf` for the modern FASTQ workflow with duplicate marking, scatter/gather calling and cohort QC.
-The two `genomics_snp-calling*.nf` workflows remain available for legacy BAM and GIAB test runs.
+Short-read WGS SNP calling from paired FASTQ: BWA-MEM → samtools fixmate/sort/markdup → index + alignment QC →
+GATK HaplotypeCaller (GVCF, scattered over interval shards) → per-shard GenomicsDBImport + GenotypeGVCFs →
+GatherVcfs → cohort QC report. Runs on any filesystem.
 
 ## Layout
 
 ```
 snp-calling/
-├── main.nf                          # modern FASTQ workflow
-├── genomics_snp-calling.nf          # main workflow (BAM list input)
-├── genomics_snp-calling_hgtest.nf   # test workflow (FASTQ pairs, GRCh38 GIAB reference)
+├── main.nf                          # the workflow
 ├── nextflow.config                  # params + executor/container profiles
+├── bin/                             # make_shards.py, snp_qc_report.py
 ├── modules/
-│   ├── bwa/  bowtie/               # indexing + alignment
-│   ├── samtools/index/             # convert, sort, add read groups, index
-│   ├── gatk/haplotypecaller/  gatk/jointgenotyping/
-│   └── multiqc/
+│   ├── reference/                  # faidx, dict, BWA index; interval sharding
+│   ├── bwa/                        # alignment
+│   ├── samtools/                   # markdup, index, qc
+│   ├── gatk/scatter/               # sharded calling, joint genotyping, gather
+│   ├── qc_report/
+│   └── bowtie/  multiqc/  gatk/haplotypecaller/  gatk/jointgenotyping/   # not used by main.nf
 └── README.md
 ```
 
-## Input layout
+## Inputs
 
-`--input_dir` (default `./input`) must contain:
+| Parameter | Meaning |
+|-----------|---------|
+| `--reads_fastq` | Glob for paired FASTQs, e.g. `'/data/fastq/*_R{1,2}_*.fastq.gz'` (quote it). The part before `_R1`/`_R2` becomes the sample name. |
+| `--reference` | Uncompressed FASTA. If `.fai`, `.dict` and the BWA index are not next to it, they are built once and cached in `--index_store`. |
+| `--intervals` | Optional BED / `.interval_list` / `.list` restricting calling; otherwise all contigs (filter with `--contig_regex`, `--min_contig_length`). |
+| `--scatter_count` | Number of interval shards to call in parallel (default 12). |
+| `--cohort_name` | Prefix of the joint VCF (`<cohort_name>.joint.vcf.gz`). |
 
-```
-data/sample_bams.txt                 # main workflow: one BAM path per line
-data/fastq/<sample>_R{1,2}_*.fastq.gz # hgtest workflow
-data/ref/ref.fasta (+ .fai, .dict, intervals.bed)   # main workflow
-data/ref/GRCh38_GIAB/...                            # hgtest workflow (names set in the script)
-```
-
-For the hgtest workflow the BWA index (`.amb .ann .bwt .pac .sa`) must exist next to the reference
-(`bwa index ref.fasta`). Reference paths are defined at the top of each `.nf` file; edit them for your data.
+The defaults for `--reads_fastq` and `--reference` point at a GRCh38/GIAB test layout under `--input_dir`;
+set both explicitly for real data.
 
 Outputs go to `--outdir` (default `./results`), including `results/reports/` (report, trace, timeline, DAG).
 
@@ -45,11 +42,13 @@ Use the scheduler profile that matches your site, combined with either container
 
 ```bash
 # Slurm + Singularity/Apptainer
-nextflow run main.nf -profile slurm,singularity --input_dir /scratch/me/project
+nextflow run main.nf -profile slurm,singularity \
+    --reference /scratch/me/ref/ref.fasta --reads_fastq '/scratch/me/fastq/*_R{1,2}_*.fastq.gz'
 
 # Slurm + tools from environment modules (no containers)
-module load nextflow bwa samtools gatk multiqc   # names/versions vary per site
-nextflow run main.nf -profile slurm,nocontainer --input_dir /scratch/me/project
+module load nextflow bwa samtools gatk python   # names/versions vary per site
+nextflow run main.nf -profile slurm,nocontainer \
+    --reference /scratch/me/ref/ref.fasta --reads_fastq '/scratch/me/fastq/*_R{1,2}_*.fastq.gz'
 ```
 
 Profiles in [nextflow.config](nextflow.config):
@@ -77,9 +76,11 @@ docker build -t nf-wgs-emsdb .
 
 docker run --rm \
   -v "$PWD/input:/pipeline/input" \
-  -v "$PWD/results:/pipeline/results" \
-  -v "$PWD/work:/pipeline/work" \
-  nf-wgs-emsdb genomics_snp-calling.nf --input_dir /pipeline/input
+  -v "$PWD/results:/pipeline/snp-calling/results" \
+  -v "$PWD/work:/pipeline/snp-calling/work" \
+  nf-wgs-emsdb main.nf \
+    --reference /pipeline/input/ref/ref.fasta \
+    --reads_fastq '/pipeline/input/fastq/*_R{1,2}_*.fastq.gz'
 ```
 
 PowerShell: replace `$PWD` with `${PWD}`. The container runs with `-profile local,nocontainer`
@@ -88,6 +89,5 @@ lowering for a laptop, e.g. via `-c local_overrides.config`.
 
 ## Notes
 
-- `genomics_snp-calling.nf` ends with a commented-out `ALIGN` process template; BAM inputs are used directly.
 - Some comments in the scripts/modules still mention S3/Batch from the original cloud setup; they do not
   affect execution.

@@ -13,7 +13,10 @@ process SNPSIFT_EXTRACT {
     def fields = params.snpsift_fields.trim().split(/\s+/).collect { "'${it}'" }.join(' ')
     """
     set -o pipefail
-    SNPSIFT_JAR=\${SNPSIFT_JAR:-\$(find /opt/conda/share /usr/local/share -name SnpSift.jar 2>/dev/null | head -n 1)}
+    if [ ! -f "\${SNPSIFT_JAR:-}" ]; then
+        SNPSIFT_JAR=\$(find /opt/conda/share /usr/local/share -name SnpSift.jar 2>/dev/null | head -n 1)
+    fi
+    [ -f "\$SNPSIFT_JAR" ] || { echo "SnpSift.jar not found; set SNPSIFT_JAR or install snpsift" >&2; exit 1; }
     export SNPSIFT_JAR
     java -Xmx${xmx}g -jar \$SNPSIFT_JAR extractFields -s "," -e "." ${vcf} ${fields} | gzip > ${cohort}.snpeff_effects.tsv.gz
     """
